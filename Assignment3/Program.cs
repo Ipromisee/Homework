@@ -9,6 +9,37 @@ namespace Shapes
         bool isLegal();
     }
 
+    //长方形类
+    class Rectangle : Shape
+    {
+        double Length { get; set; }
+        double Width { get; set; }
+
+        public double Area
+        {
+            get { return getArea(); }
+        }
+
+        public Rectangle(double l, double w)
+        {
+            Length = l; 
+            Width = w;
+        }
+        public bool isLegal()
+        {
+            return Length > 0 && Width > 0;
+        }
+        public double getArea()
+        {
+            if (!isLegal())
+            {
+                Console.WriteLine("Illegal!!!返回-1.0");
+                return -1.0;
+            }
+            return Length * Width;
+        }
+        
+    }
     //正方形类
     class Square : Shape
     {
@@ -41,6 +72,7 @@ namespace Shapes
             return Side * Side;
         }
     }
+    
 
     class Triangle : Shape
     {
@@ -77,37 +109,7 @@ namespace Shapes
         }
     }
 
-    class Rectangle : Shape
-    {
-        double Length { get; set; }
-        double Width { get; set; }
-
-        public double Area
-        {
-            get { return getArea(); }
-        }
-
-        public Rectangle(double l, double w)
-        {
-            Length = l; 
-            Width = w;
-        }
-        public bool isLegal()
-        {
-            return Length > 0 && Width > 0;
-        }
-        public double getArea()
-        {
-            if (!isLegal())
-            {
-                Console.WriteLine("Illegal!!!返回-1.0");
-                return -1.0;
-            }
-            return Length * Width;
-        }
-        
-    }
-
+    
     class ShapeFactory
     {
         public static Shape getShape(int seed)
