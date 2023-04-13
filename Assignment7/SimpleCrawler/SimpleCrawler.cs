@@ -1,65 +1,65 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
-using System.Security.Policy;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
-
-namespace Assignment7
+//htm/html/aspx/php/jsp
+namespace SimpleCrawler
 {
     class SimpleCrawler
     {
-        public Hashtable urls = new Hashtable();
+        private Hashtable urls = new Hashtable();
         private int count = 0;
-        public string StartURL { get; set; }//起始网址
-        public int MaxPage { get; set; }//最大下载数量
-
-        //停止事件
-        public event Action<SimpleCrawler> CrawlerStopped;
-        //下载事件
-        public event Action<SimpleCrawler, string, string> PageDownloaded;
-        //等待访问序列
-        private readonly Queue<string> waiting = new Queue<string>();
-        public string HostFilter { get; set; }
-        public string FileFilter { get; set; }
-
-        public Encoding HtmlEncoding { get; set; }
-
-        public SimpleCrawler()
+        //绝对地址正则表达式
+        //site地址，host域名，file文件夹名
+        public string AddrRegex = @"^(?<site>https?://(?<host>[\w.-]+)(:\d+)?($|/))(\w+/)*(?<file>[^#?]*)";
+        static void Main(string[] args)
         {
-            MaxPage = 100;
-            HtmlEncoding = Encoding.UTF8;
+            SimpleCrawler myCrawler = new SimpleCrawler();
+            string startUrl = "http://www.cnblogs.com/dstang2000/";
+            if (args.Length >= 1) startUrl = args[0];
+            myCrawler.urls.Add(startUrl, false);//加入初始页面
+            new Thread(myCrawler.Crawl).Start();
         }
 
-        public void Crawl()
+        private void Crawl()
         {
-            urls.Clear();
-            waiting.Clear();
-            waiting.Enqueue(StartURL);
-
-            while (count < MaxPage && waiting.Count > 0)
+            Console.WriteLine("开始爬行了.... ");
+            while (true)
             {
-                string url = waiting.Dequeue();
-                try
+                string current = null;
+                foreach (string url in urls.Keys)
                 {
-                    string html = DownLoad(url);
-                    urls[url] = true;
-                    count++;
-                    PageDownloaded(this, url, "success");
-                    Parse(html, url);
+                    if ((bool)urls[url]) continue;
+                    current = url;
                 }
-                catch (Exception ex)
+
+                if (current == null || count > 10) break;
+                Console.WriteLine("爬行" + current + "页面!");
+                Match urlMatch = Regex.Match(current, AddrRegex);
+                string html = DownLoad(current); // 下载
+                urls[current] = true;
+                count++;
+                //判断当前网页的类型
+                if (urlMatch.Groups["file"].Value != "" && urlMatch.Groups["file"].Value != null)
                 {
-                    PageDownloaded(this, url, "  Error:" + ex.Message);
+                    string currentFile = urlMatch.Groups["file"].Value;
+                    int end = currentFile.LastIndexOf(".");
+                    string currentType = currentFile.Substring(end + 1);
+                    if (currentType != "html" && currentType != "htm" && currentType != "aspx" &&
+                        currentType != "php" && currentType != "jsp") continue;
                 }
+                Parse(html, current);//解析,并加入新的链接
+                Console.WriteLine("爬行结束");
             }
-            CrawlerStopped(this);
         }
 
-        private string DownLoad(string url)
+        public string DownLoad(string url)
         {
             try
             {
@@ -77,44 +77,44 @@ namespace Assignment7
             }
         }
 
-        private void Parse(string html, string pageUrl)//解析，得到超级链接href
+        private void Parse(string html, string url)
         {
-            string strRef = @"(href|HREF)[]*=[]*[""'](?<url>[^""'#>]+)[""']";
-            MatchCollection matches = new Regex(strRef).Matches(html);
+            //超级链接正则表达式
+            Regex regex = new Regex(@"(href|HREF)[]*=[]*[""'][^""'#>]+[""']");
+            MatchCollection matches = regex.Matches(html);
             foreach (Match match in matches)
             {
+                //从href=后面开始
+                string strRef;
                 strRef = match.Value.Substring(match.Value.IndexOf('=') + 1)
                           .Trim('"', '\"', '#', '>');
                 if (strRef.Length == 0) continue;
-                strRef = UrlConvert(strRef, StartURL);
+                strRef = UrlConvert(strRef, url);//转变成绝对地址
                 if (urls[strRef] == null) urls[strRef] = false;
             }
         }
-
         private string UrlConvert(string url, string pageUrl)
         {
-            string urlParseRegex = @"^(?<site>https?://(?<host>[\w.-]+)(:\d+)?($|/))(\w+/)*(?<file>[^#?]*)";
             if (url.Contains("://"))//如果地址里面有://已经是绝对地址
             {
                 return url;
             }
-            else if (url.StartsWith("//"))//如果地址以//开头则加上http:
+            else if (url.StartsWith("//"))//如果地址以//开头则加上协议名https:
             {
                 return "http:" + url;
             }
-            else if (url.StartsWith("/"))
+            else if (url.StartsWith("/"))//如果以/开头则把根目录加在url前
             {
-                Match urlMatch = Regex.Match(pageUrl, urlParseRegex);
+                Match urlMatch = Regex.Match(pageUrl, AddrRegex);
                 String site = urlMatch.Groups["site"].Value;
+                //如果site结尾有/则只要把url的/后面的地址加入，如果没有则全部加入
                 return site.EndsWith("/") ? site + url.Substring(1) : site + url;
             }
-            else if (url.StartsWith("../"))
+            else if (url.StartsWith("../"))//如果以../则将上一级目录加入
             {
-                url = url.Substring(3);
-                int idx = pageUrl.LastIndexOf('/');
-                return UrlConvert(url, pageUrl.Substring(0, idx));
+                return UrlConvert(url.Substring(3), pageUrl.Substring(0, pageUrl.LastIndexOf('/')));
             }
-            else if (url.StartsWith("./"))
+            else if (url.StartsWith("./"))//如果以./开头则这一级目录加入
             {
                 return UrlConvert(url.Substring(2), pageUrl);
             }
