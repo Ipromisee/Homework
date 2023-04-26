@@ -55,7 +55,6 @@ namespace OrderForm {
     }
 
     private void btnSave_Click(object sender, EventArgs e) {
-      //TODO 加上订单合法性验证
       try {
         if (this.EditModel) {
           orderService.UpdateOrder(CurrentOrder);
